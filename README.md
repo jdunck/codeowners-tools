@@ -12,48 +12,57 @@ A shell script that analyzes a git commit's changed files against CODEOWNERS rul
   - `*.ext` - Matches files with extension anywhere
   - `/adapters/**/auth/*.ts` - Complex patterns with wildcards
 - Proper handling of path anchoring (leading `/`)
-- Deduplicates matched rules in the summary
-- Shows which files matched which patterns
+- Shows each matched only once, in codeowner-file order.
 
 ## Usage
 
 ```bash
-./check.sh <commit-sha> <codeowners-file>
+./check.sh <base-commit> <candidate-commit> <codeowners-file>
 ```
 
 ### Arguments
 
-- `commit-sha` (required): Git commit SHA to analyze. Can use any git ref like `HEAD`, `HEAD~1`, `main`, branch names, etc.
-- `codeowners-file` (required): Path to CODEOWNERS file. Typically `.github/CODEOWNERS` or `CODEOWNERS` in repository root.
+- `base-commit` (required): Commit containing the CODEOWNERS file to use. Mimics GitHub PR behavior where base branch rules apply.
+- `candidate-commit` (required): Commit with changed files to analyze. Can use any git ref like `HEAD`, `HEAD~1`, `main`, branch names, etc.
+- `codeowners-file` (required): Path to CODEOWNERS file in base-commit. Typically `.github/CODEOWNERS` or `CODEOWNERS` in repository root.
 
 ### Examples
 
+Using the [codeowners-tools-corpus](https://github.com/jdunck/codeowners-tools-corpus) repository:
+
 ```bash
-# Analyze the most recent commit
-./check.sh HEAD .github/CODEOWNERS
+cd ../codeowners-tools-corpus
 
-# Analyze a specific commit
-./check.sh abc123 .github/CODEOWNERS
+# Analyze a commit against its own CODEOWNERS
+../codeowners-tools/check.sh a35f805 a35f805 .github/CODEOWNERS
 
-# Analyze the previous commit
-./check.sh HEAD~1 .github/CODEOWNERS
+# Single file change - demonstrates last-match-wins
+../codeowners-tools/check.sh 6b24f01 6b24f01 .github/CODEOWNERS
+# Output: /src/ @src-team
 
-# Use a CODEOWNERS file in repository root
-./check.sh HEAD CODEOWNERS
-
-# Analyze a specific commit with custom CODEOWNERS file
-./check.sh abc123 path/to/CODEOWNERS
+# PR scenario: candidate updates CODEOWNERS, but base rules apply
+../codeowners-tools/check.sh a35f805 a1752a1 .github/CODEOWNERS
+# Output: *.js @js-team
+# (NOT *.js @js-team @web-team - base CODEOWNERS determines reviewers)
 ```
 
 ## Output
 
-The script outputs only the matched CODEOWNERS rules (one per line, sorted and deduplicated):
+The script outputs matched CODEOWNERS rules from the base commit (one per line, in CODEOWNERS file order):
 
 ```
 /services/flat-file @Finch-API/team-data
 ```
 
 If no rules match, the script outputs nothing and exits with code 0.
+
+### Why Two Commits?
+
+This mimics GitHub's actual PR review behavior:
+- **Base commit** provides the CODEOWNERS file (what rules apply)
+- **Candidate commit** provides the changed files (what's being reviewed)
+
+This prevents bypassing code review by modifying CODEOWNERS in the same PR where you're making changes.
 
 ## Pattern Matching Details
 
@@ -70,11 +79,12 @@ The script correctly handles these CODEOWNERS pattern types:
 ## Exit Codes
 
 - `0` - Success (with or without matches)
-- `1` - CODEOWNERS file not found
-- `2` - Invalid commit
+- `1` - CODEOWNERS file not found in base commit
+- `2` - Invalid commit (base or candidate)
 - `3` - Not in a git repository
-- `4` - Missing required argument: commit-sha
-- `5` - Missing required argument: codeowners-file
+- `4` - Missing required argument: base-commit
+- `5` - Missing required argument: candidate-commit
+- `6` - Missing required argument: codeowners-file
 
 ## Notes
 
@@ -87,6 +97,7 @@ The script correctly handles these CODEOWNERS pattern types:
 ### Example: Last Match Wins
 
 Given this CODEOWNERS file:
+
 ```
 /services/** @team-general
 /services/flat-file @team-specific

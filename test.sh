@@ -42,22 +42,25 @@ echo "=== Testing check.sh ==="
 echo ""
 
 # Test success cases
-test_case "Success with matches" 0 "$SCRIPT" a35f805 .github/CODEOWNERS
-test_case "Success with no matches" 0 "$SCRIPT" 7f35e64 .github/CODEOWNERS
-test_case "Complex pattern (**/ pattern)" 0 "$SCRIPT" a35f805 .github/CODEOWNERS
-test_case "Wildcard pattern" 0 "$SCRIPT" a35f805 .github/CODEOWNERS
+test_case "Success with matches" 0 "$SCRIPT" a35f805 a35f805 .github/CODEOWNERS
+test_case "Success with multiple files" 0 "$SCRIPT" 7f35e64 7f35e64 .github/CODEOWNERS
+test_case "Single file - last match wins" 0 "$SCRIPT" 6b24f01 6b24f01 .github/CODEOWNERS
+test_case "Complex pattern (**/ pattern)" 0 "$SCRIPT" a35f805 a35f805 .github/CODEOWNERS
+test_case "Wildcard pattern" 0 "$SCRIPT" a35f805 a35f805 .github/CODEOWNERS
+test_case "PR scenario - base CODEOWNERS applies" 0 "$SCRIPT" a35f805 a1752a1 .github/CODEOWNERS
 
 # Test error cases
-test_case "Missing commit-sha argument" 4 "$SCRIPT"
-test_case "Missing codeowners-file argument" 5 "$SCRIPT" HEAD
-test_case "CODEOWNERS not found" 1 "$SCRIPT" HEAD /nonexistent/file
-test_case "Invalid commit" 2 "$SCRIPT" invalidcommit123 .github/CODEOWNERS
+test_case "Missing base-commit argument" 4 "$SCRIPT"
+test_case "Missing candidate-commit argument" 5 "$SCRIPT" HEAD
+test_case "Missing codeowners-file argument" 6 "$SCRIPT" HEAD HEAD
+test_case "CODEOWNERS not found" 1 "$SCRIPT" HEAD HEAD /nonexistent/file
+test_case "Invalid commit" 2 "$SCRIPT" invalidcommit123 a35f805 .github/CODEOWNERS
 
 # Test git repo check (run in /tmp)
 echo "Test: Not in git repository"
 CODEOWNERS_FULL_PATH="$CORPUS_DIR/.github/CODEOWNERS"
 set +e
-output=$(cd /tmp && "$SCRIPT" HEAD "$CODEOWNERS_FULL_PATH" 2>&1)
+output=$(cd /tmp && "$SCRIPT" HEAD HEAD "$CODEOWNERS_FULL_PATH" 2>&1)
 exit_code=$?
 set -e
 

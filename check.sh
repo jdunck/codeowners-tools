@@ -1,18 +1,41 @@
 #!/usr/bin/env bash
 
 # check.sh
-# Analyzes a git commit's changed files against CODEOWNERS rules
-# Usage: ./check.sh <commit-sha> <codeowners-file>
+# Analyzes a commit's changed files against CODEOWNERS rules from a base commit
+# Mimics GitHub PR behavior: CODEOWNERS from base branch, files from candidate commit
+# Outputs any effective (last-wins) rule, in the order of the CODEOWNERS file
+#
+# Usage: ./check.sh <base-commit> <candidate-commit> <codeowners-file>
 #
 # Arguments:
-#   commit-sha: Git commit SHA to analyze (required)
-#   codeowners-file: Path to CODEOWNERS file (required)
+#   base-commit: Commit containing the CODEOWNERS file to use (required)
+#   candidate-commit: Commit with changed files to analyze (required)
+#   codeowners-file: Path to CODEOWNERS file in base-commit (required)
 #
-# Examples:
-#   ./check.sh HEAD .github/CODEOWNERS
-#   ./check.sh abc123 .github/CODEOWNERS
-#   ./check.sh HEAD~1 .github/CODEOWNERS
-#   ./check.sh main CODEOWNERS
+# Examples (using codeowners-tools-corpus repository):
+#   cd ../codeowners-tools-corpus
+#
+#   # Example 1: Same commit for both (analyze commit against its own CODEOWNERS)
+#   $ ../codeowners-tools/check.sh a35f805 a35f805 .github/CODEOWNERS
+#   * @global-owner
+#   *.js @js-team
+#   /src/ @src-team
+#   /src/components/ @frontend-team
+#   /src/components/buttons/ @ui-team
+#   /docs/**/*.md @docs-specialists
+#   ... (more patterns)
+#   # Shows how nested patterns override: buttons/ beats components/ for PrimaryButton.js
+#
+#   # Example 2: PR scenario - candidate updates CODEOWNERS, but base rules apply
+#   $ ../codeowners-tools/check.sh a35f805 a1752a1 .github/CODEOWNERS
+#   *.js @js-team
+#   # Candidate a1752a1 added @web-team to *.js, but base a35f805 has only @js-team
+#   # Shows GitHub PR behavior: base branch CODEOWNERS determines required reviewers
+#
+#   # Example 3: Single file rename - outputs just the winning pattern
+#   $ ../codeowners-tools/check.sh 6b24f01 6b24f01 .github/CODEOWNERS
+#   /src/ @src-team
+#   # Demonstrates last-match-wins: /src/ overrides *.js for src/main.js
 
 set -euo pipefail
 
@@ -21,22 +44,29 @@ set -euo pipefail
 # 1 - CODEOWNERS file not found
 # 2 - Invalid commit
 # 3 - Not in a git repository
-# 4 - Missing required argument (commit-sha)
-# 5 - Missing required argument (codeowners-file)
+# 4 - Missing required argument (base-commit)
+# 5 - Missing required argument (candidate-commit)
+# 6 - Missing required argument (codeowners-file)
 
 # Check for required arguments
 if [[ $# -lt 1 ]]; then
-    echo "Error: Missing required argument: commit-sha"
+    echo "Error: Missing required argument: base-commit"
     exit 4
 fi
 
 if [[ $# -lt 2 ]]; then
-    echo "Error: Missing required argument: codeowners-file"
+    echo "Error: Missing required argument: candidate-commit"
     exit 5
 fi
 
-COMMIT="$1"
-CODEOWNERS_FILE="$2"
+if [[ $# -lt 3 ]]; then
+    echo "Error: Missing required argument: codeowners-file"
+    exit 6
+fi
+
+BASE_COMMIT="$1"
+CANDIDATE_COMMIT="$2"
+CODEOWNERS_FILE="$3"
 
 # Check if in a git repository
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
@@ -44,20 +74,25 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
     exit 3
 fi
 
-# Validate commit exists
-if ! git cat-file -e "$COMMIT^{commit}" 2>/dev/null; then
-    echo "Error: Invalid commit '$COMMIT'"
+# Validate commits exist
+if ! git cat-file -e "$CANDIDATE_COMMIT^{commit}" 2>/dev/null; then
+    echo "Error: Invalid commit '$CANDIDATE_COMMIT'"
     exit 2
 fi
 
-# Check if CODEOWNERS file exists in the specified commit
-if ! git cat-file -e "$COMMIT:$CODEOWNERS_FILE" 2>/dev/null; then
-    echo "Error: CODEOWNERS file not found at $CODEOWNERS_FILE in commit $COMMIT"
+if ! git cat-file -e "$BASE_COMMIT^{commit}" 2>/dev/null; then
+    echo "Error: Invalid commit '$BASE_COMMIT'"
+    exit 2
+fi
+
+# Check if CODEOWNERS file exists in the base commit
+if ! git cat-file -e "$BASE_COMMIT:$CODEOWNERS_FILE" 2>/dev/null; then
+    echo "Error: CODEOWNERS file not found at $CODEOWNERS_FILE in commit $BASE_COMMIT"
     exit 1
 fi
 
-# Get list of changed files in the commit
-mapfile -t CHANGED_FILES < <(git diff-tree --no-commit-id --name-only -r "$COMMIT" 2>/dev/null)
+# Get list of changed files in the candidate commit
+mapfile -t CHANGED_FILES < <(git diff-tree --no-commit-id --name-only -r "$CANDIDATE_COMMIT" 2>/dev/null)
 
 if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
     exit 0
@@ -92,7 +127,14 @@ match_pattern() {
         fi
 
         # Directory match - pattern is a directory and file is under it
-        if [[ "$pattern" == */ ]] || [[ "$pattern" != *.* ]]; then
+        if [[ "$pattern" == */ ]]; then
+            # Remove trailing slash for matching
+            local pattern_no_slash="${pattern%/}"
+            if [[ "$filepath" == "$pattern_no_slash"/* ]]; then
+                return 0
+            fi
+        elif [[ "$pattern" != *.* ]]; then
+            # Pattern without extension, treat as directory
             if [[ "$filepath" == "$pattern"/* ]]; then
                 return 0
             fi
@@ -224,7 +266,7 @@ while IFS= read -r line; do
     all_rules_patterns+=("$pattern")
     all_rules_owners+=("$owners")
     all_rules_line_numbers+=("$line_num")
-done < <(git show "$COMMIT:$CODEOWNERS_FILE" 2>/dev/null)
+done < <(git show "$BASE_COMMIT:$CODEOWNERS_FILE" 2>/dev/null)
 
 # For each changed file, find the last (winning) matching rule
 declare -A file_to_rule_line  # Maps file -> line number of winning rule
