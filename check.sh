@@ -75,14 +75,22 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 # Validate commits exist
+if ! git cat-file -e "$BASE_COMMIT^{commit}" 2>/dev/null; then
+    echo "Error: Invalid commit '$BASE_COMMIT'"
+    exit 2
+fi
+
 if ! git cat-file -e "$CANDIDATE_COMMIT^{commit}" 2>/dev/null; then
     echo "Error: Invalid commit '$CANDIDATE_COMMIT'"
     exit 2
 fi
 
-if ! git cat-file -e "$BASE_COMMIT^{commit}" 2>/dev/null; then
-    echo "Error: Invalid commit '$BASE_COMMIT'"
-    exit 2
+# Verify candidate is a descendant of (or equal to) base
+if [[ "$BASE_COMMIT" != "$CANDIDATE_COMMIT" ]]; then
+    if ! git merge-base --is-ancestor "$BASE_COMMIT" "$CANDIDATE_COMMIT" 2>/dev/null; then
+        echo "Error: Candidate commit '$CANDIDATE_COMMIT' is not a descendant of base commit '$BASE_COMMIT'"
+        exit 2
+    fi
 fi
 
 # Check if CODEOWNERS file exists in the base commit

@@ -80,7 +80,7 @@ The script correctly handles these CODEOWNERS pattern types:
 
 - `0` - Success (with or without matches)
 - `1` - CODEOWNERS file not found in base commit
-- `2` - Invalid commit (base or candidate)
+- `2` - Invalid commit (base or candidate), or candidate is not a descendant of base
 - `3` - Not in a git repository
 - `4` - Missing required argument: base-commit
 - `5` - Missing required argument: candidate-commit

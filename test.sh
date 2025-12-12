@@ -55,6 +55,7 @@ test_case "Missing candidate-commit argument" 5 "$SCRIPT" HEAD
 test_case "Missing codeowners-file argument" 6 "$SCRIPT" HEAD HEAD
 test_case "CODEOWNERS not found" 1 "$SCRIPT" HEAD HEAD /nonexistent/file
 test_case "Invalid commit" 2 "$SCRIPT" invalidcommit123 a35f805 .github/CODEOWNERS
+test_case "Candidate not descendant of base" 2 "$SCRIPT" 654eb18 9ce38e0 .github/CODEOWNERS
 
 # Test git repo check (run in /tmp)
 echo "Test: Not in git repository"
