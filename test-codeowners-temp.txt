@@ -1,0 +1,3 @@
+# More specific rule first, then general
+/services/flat-file @team-specific
+/services/** @team-general

@@ -1,0 +1,11 @@
+# Line 2
+/src/**/*.test.js @qa-team
+
+# Line 5
+/docs/**/*.md @docs-specialists
+
+# Line 8
+*.config.js @config-team
+
+# Line 11
+/src/components/ @frontend-team

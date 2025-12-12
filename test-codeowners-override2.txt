@@ -1,0 +1,3 @@
+# Test CODEOWNERS file with rules in reverse order
+/src/components/buttons/ @ui-team
+/src/components/ @frontend-team

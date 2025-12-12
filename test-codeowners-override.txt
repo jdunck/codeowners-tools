@@ -1,0 +1,3 @@
+# Test CODEOWNERS file to verify last match wins
+/src/components/ @frontend-team
+/src/components/buttons/ @ui-team

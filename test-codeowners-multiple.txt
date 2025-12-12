@@ -1,0 +1,8 @@
+# Line 2 - should match docs files
+/docs/ @docs-team
+
+# Line 5 - should match dist files
+/dist/ @build-team
+
+# Line 8 - should match src/components files
+/src/components/ @frontend-team
